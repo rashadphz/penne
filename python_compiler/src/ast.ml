@@ -1,3 +1,5 @@
+open Core
+
 type bop = 
   | Mul
   | Div
@@ -12,9 +14,11 @@ type bop =
   | Geq
   | CmpEq
   | CmpNeq
+[@@deriving sexp]
 
 type assignop =
   | AssignEq
+[@@deriving sexp]
 
 type expr = 
   | Var of string
@@ -23,16 +27,19 @@ type expr =
   | String of string
   | BinOp of bop * expr * expr
   | FunCall of string * expr list (*fun_name by fun_args*)
+[@@deriving sexp]
 
 type var_decl = {
   var_name: string;
   init_val: expr;
 }
+[@@deriving sexp]
 
 type fun_proto = {
   fun_name: string;
   params: string list;
 }
+[@@deriving sexp]
 
 type block = statement list
 and statement =
@@ -50,6 +57,10 @@ and statement =
     proto: fun_proto;
     body: block;
   }
+[@@deriving sexp]
 
 type prog = Prog of statement list
+[@@deriving sexp]
+
+let string_of_prog prog = prog |> sexp_of_prog |> Sexp.to_string_hum 
 

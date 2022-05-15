@@ -1,6 +1,13 @@
 open Ast
+open Core
 
-let parse (s : string) : prog =
-  let lexbuf = Lexing.from_string s in
+let read_file fname =
+  In_channel.read_all fname
+
+let input_fname = (Sys.get_argv ()).(1)
+
+let () =
+  let lexbuf = Lexing.from_string (read_file input_fname) in
   let ast = Parser.prog Lexer.read lexbuf in
-  ast
+  ast |> string_of_prog |> print_string
+

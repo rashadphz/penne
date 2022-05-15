@@ -12,7 +12,7 @@ let next_line lexbuf =
     }
 
   let keyword_table = Hashtbl.create 50
-  let _ = 
+  let () = 
     List.iter (fun (kwd, tok) -> Hashtbl.add keyword_table kwd tok) 
     ["def", DEF;
     "True", TRUE;
@@ -44,7 +44,8 @@ let new_line = '\n' | '\r'
 
 rule read = 
   parse 
-  | white_space {read lexbuf}
+  | white_space { read lexbuf } 
+  | new_line { next_line lexbuf; read lexbuf }
   | "*" { TIMES }
   | "/" { DIV }
   | "%" { MOD }
