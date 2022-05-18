@@ -36,7 +36,7 @@ let digit = ['0'-'9']
 let int = digit+
 let float = digit+ '.' digit+
 
-let id = ['a'-'z' 'A'-'Z' '_']+
+let id = ['a'-'z' 'A'-'Z' '_']+ ['a'-'z' 'A'-'Z' '_' '0' -'9']*
 
 let white_space = [' ' '\t']+
 let new_line = '\n' | '\r'

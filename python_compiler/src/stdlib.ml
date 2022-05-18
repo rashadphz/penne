@@ -6,7 +6,7 @@ let printf_fn =
 
 (* format strings need to be built in main/function bb (LLVM Bug?) *)
 let gen_print_int () = 
-  let format_str = Llvm.build_global_stringptr "%d" "fmt" main_builder in
+  let format_str = Llvm.build_global_stringptr "%d\n" "fmt" main_builder in
   let print_int_type = Llvm.function_type i32_type [|i32_type|] in
   let print_int_fn = declare_fn "print_int" print_int_type in
     make_bb print_int_fn;

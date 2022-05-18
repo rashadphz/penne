@@ -4,26 +4,26 @@ open Context
 open Stdlib
 
 (* Begin Codegen *)
-let rec gen_expr ?(is_main=false) = function
-  | Var (name) -> find_var ~is_main name
+let rec gen_expr = function
+  | Var (name) -> find_var name
   | Int (v) ->  llvm_i32 v
   | Float (v) -> llvm_float v
   | String (s) -> Llvm.const_int i32_type 999
   | BinOp (op, lhs, rhs) -> 
-    let lhs_val = gen_expr lhs ~is_main in
-    let rhs_val = gen_expr rhs ~is_main in
+    let lhs_val = gen_expr lhs in
+    let rhs_val = gen_expr rhs in
     gen_binop op lhs_val rhs_val
   | FunCall (f_name, f_args) -> 
-    let args = gen_args f_args ~f:(gen_expr ~is_main) in
+    let args = gen_args f_args ~f:(gen_expr) in
     if is_builtin f_name then
-      built_in_call ~is_main f_name args
+      built_in_call f_name args
     else
       let callee = 
         match find_fn f_name with
         | None -> raise_s [%message "Function not found: " f_name]
         | Some callee -> callee
       in
-      call ~is_main callee args
+      call callee args
 
 let gen_proto proto = 
     let fun_name = proto.fun_name in
@@ -38,11 +38,12 @@ let gen_proto proto =
     in set_fn_args fn args
 
 let rec gen_fn proto body =  
-  Hashtbl.clear named_values; (*Need to reset args for new function*)
   let the_fn = gen_proto proto in
     make_bb the_fn;
   let ret_val = gen_block body in
     finish_fn ret_val;
+  (* Clear any function args/locals *)
+  Hashtbl.clear named_values; 
   the_fn
 
 (*generate a statement then the rest of the block*)
@@ -64,9 +65,17 @@ and gen_statement = function
   | _ -> debug_val
 
 and gen_top_level_exp stat =
-  match stat with
-  | Exp (e) -> gen_expr e ~is_main:true
-  | _ -> gen_statement stat
+  is_main := true; (*Top level expressions belong in main*)
+  let res = match stat with
+  | Exp (e) -> 
+    gen_statement stat 
+  | VarDecl (e) -> 
+    gen_statement stat 
+  | _ -> 
+    is_main := false;
+    gen_statement stat 
+  in
+  res
 
 let rec gen_prog prog =
   match prog with 

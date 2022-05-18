@@ -26,25 +26,56 @@ let main_fn = Llvm.define_function "main" main_fntype the_module
 let main_block = Llvm.entry_block main_fn 
 let main_builder = Llvm.builder_at_end context main_block
 
+(* Determines if we use main_builder or builder *)
+let is_main = ref false
+
+let get_builder () = 
+  match !is_main with
+  | true -> main_builder
+  | false -> builder
 
 (* Variables *)
+let global_exists name =
+  match Llvm.lookup_global name the_module with
+  | None -> false
+  | Some x -> true
 
-let load_ptr ?(is_main=false) ptr =
-  match is_main with
-  | true -> Llvm.build_load ptr "load" main_builder
-  | false -> Llvm.build_load ptr "load" builder
+let load_ptr ?(name="load") ptr =
+  Llvm.build_load ptr name (get_builder ())
+
+let store_ptr ptr str_val =
+  Llvm.build_store str_val ptr (get_builder ())
+
+(* Allocate space in the stack, store the var in named_values *)
+let make_local_var name init_val =
+  let alloc_name = (name ^ "_alloc") in
+  let var_ptr = Llvm.build_alloca i32_type alloc_name (get_builder ()) in
+  let store = store_ptr var_ptr init_val in
+  let var_value = load_ptr var_ptr ~name in
+  Hashtbl.set named_values ~key:name ~data:var_value;
+  var_value
+
+(* Non-existent -> make global, Exists -> store new value *)
+let make_global_var name init_val =
+  match Llvm.lookup_global name the_module with
+  | None -> Llvm.define_global name init_val the_module
+  | Some v_ptr -> store_ptr  v_ptr init_val
+
 
 let add_var name init_val =
-  Llvm.define_global name init_val the_module
+  match !is_main with
+  | true -> make_global_var name init_val
+  | false -> make_local_var name init_val
 
-let find_global_var ?(is_main=false) name =
+let find_global_var name =
   match Llvm.lookup_global name the_module with
   | None -> raise_s [%message "Variable does not exist"]
-  | Some v_ptr -> load_ptr v_ptr ~is_main 
+  | Some v_ptr -> load_ptr v_ptr 
 
-let find_var ?(is_main=false) name = 
+(* Search the local scope first then global *)
+let find_var name = 
   match Hashtbl.find named_values name with
-  | None -> find_global_var name ~is_main 
+  | None -> find_global_var name 
   | Some v -> v
 
 (* Functions *)
@@ -62,10 +93,8 @@ let declare_fn fn_name fn_type =
 let gen_args args ~f:codegen =
   Array.map (Array.of_list args) ~f:codegen
 
-let call ?(is_main=false) fn args = 
-  match is_main with
-  | true -> Llvm.build_call fn args "calltmp" main_builder
-  | false -> Llvm.build_call fn args "calltmp" builder
+let call fn args = 
+  Llvm.build_call fn args "calltmp" (get_builder ())
 
 let set_fn_args fn args = 
   Array.iteri ~f:(fun i arg ->
@@ -88,7 +117,7 @@ let is_builtin f_name =
   | _ -> false
 
 
-let built_in_call ?(is_main=false) f_name args =
+let built_in_call f_name args =
   match (f_name) with
   | "print" -> 
     let print_int = 
@@ -96,28 +125,28 @@ let built_in_call ?(is_main=false) f_name args =
       | None -> raise_s [%message "print_int not found"]
       | Some fn -> fn
     in
-    call ~is_main print_int args
+    call print_int args
   | _ -> debug_val
 
 (* Building Blocks *)
 let make_bb the_fn =
   let bb = Llvm.append_block context "entry" the_fn in
-  Llvm.position_at_end bb builder;
+  Llvm.position_at_end bb (get_builder ());
   ()
 
 let gen_binop op lhs rhs =
   match op with
-  | Mul -> Llvm.build_mul lhs rhs "multmp" builder
-  | Div -> Llvm.build_sdiv lhs rhs "divtmp" builder
-  | Mod -> Llvm.build_mul lhs rhs "multmp" builder
-  | Add -> Llvm.build_add lhs rhs "addtmp" builder
-  | Sub -> Llvm.build_sub lhs rhs "subtmp" builder
-  | LShift -> Llvm.build_shl lhs rhs "shltmp" builder
-  | RShift -> Llvm.build_ashr lhs rhs "ashrtmp" builder
-  | Lt -> Llvm.build_icmp Llvm.Icmp.Slt lhs rhs "cmptmp" builder
-  | Leq -> Llvm.build_icmp Llvm.Icmp.Sle lhs rhs "cmptmp" builder
-  | Gt -> Llvm.build_icmp Llvm.Icmp.Sgt lhs rhs "cmptmp" builder
-  | Geq -> Llvm.build_icmp Llvm.Icmp.Sge lhs rhs "cmptmp" builder
-  | CmpEq -> Llvm.build_icmp Llvm.Icmp.Eq lhs rhs "cmptmp" builder
-  | CmpNeq -> Llvm.build_icmp Llvm.Icmp.Ne lhs rhs "cmptmp" builder
+  | Mul -> Llvm.build_mul lhs rhs "multmp" (get_builder ())
+  | Div -> Llvm.build_sdiv lhs rhs "divtmp" (get_builder ())
+  | Mod -> Llvm.build_mul lhs rhs "multmp" (get_builder ())
+  | Add -> Llvm.build_add lhs rhs "addtmp" (get_builder ())
+  | Sub -> Llvm.build_sub lhs rhs "subtmp" (get_builder ())
+  | LShift -> Llvm.build_shl lhs rhs "shltmp" (get_builder ())
+  | RShift -> Llvm.build_ashr lhs rhs "ashrtmp" (get_builder ())
+  | Lt -> Llvm.build_icmp Llvm.Icmp.Slt lhs rhs "cmptmp" (get_builder ())
+  | Leq -> Llvm.build_icmp Llvm.Icmp.Sle lhs rhs "cmptmp" (get_builder ())
+  | Gt -> Llvm.build_icmp Llvm.Icmp.Sgt lhs rhs "cmptmp" (get_builder ())
+  | Geq -> Llvm.build_icmp Llvm.Icmp.Sge lhs rhs "cmptmp" (get_builder ())
+  | CmpEq -> Llvm.build_icmp Llvm.Icmp.Eq lhs rhs "cmptmp" (get_builder ())
+  | CmpNeq -> Llvm.build_icmp Llvm.Icmp.Ne lhs rhs "cmptmp" (get_builder ())
 
