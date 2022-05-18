@@ -36,16 +36,15 @@ let digit = ['0'-'9']
 let int = digit+
 let float = digit+ '.' digit+
 
-let alpha = ['a'-'z' 'A'-'Z']
-let id = alpha+
+let id = ['a'-'z' 'A'-'Z' '_']+
 
 let white_space = [' ' '\t']+
 let new_line = '\n' | '\r'
 
 rule read = 
   parse 
-  | white_space { read lexbuf } 
-  | new_line { next_line lexbuf; read lexbuf }
+  | white_space {read lexbuf}
+  | new_line {next_line lexbuf; read lexbuf}
   | "*" { TIMES }
   | "/" { DIV }
   | "%" { MOD }

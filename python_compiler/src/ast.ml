@@ -30,14 +30,14 @@ type expr =
 [@@deriving sexp]
 
 type var_decl = {
-  var_name: string;
+  name: string;
   init_val: expr;
 }
 [@@deriving sexp]
 
 type fun_proto = {
   fun_name: string;
-  params: string list;
+  args: string list;
 }
 [@@deriving sexp]
 

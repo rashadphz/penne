@@ -11,7 +11,6 @@
 %token LBRACE
 %token RBRACE
 
-
 %token TIMES DIV MOD
 %token PLUS MINUS
 
@@ -34,6 +33,7 @@
 %token EQ
 
 %token IF ELSE ELIF
+%token PRINT
 
 %start <Ast.prog> prog
 %%
@@ -56,7 +56,7 @@ expr:
   
 var_decl:
   id = ID; EQ; e = expr
-    { { var_name = id; init_val = e } }
+    { { name = id; init_val = e } }
 
 statement:
   | e = expr; SEMICOLON
@@ -82,18 +82,18 @@ block:
     { stmnts }
 
 fun_proto:
-  DEF; fun_name = ID; LPAREN; params = params; RPAREN;
-  { {fun_name; params} }
+  DEF; fun_name = ID; LPAREN; args = fn_args; RPAREN;
+  { {fun_name; args} }
 
 fun_def:
   proto = fun_proto; COLON; body = block
     { {proto; body} }
 
-params:
+fn_args:
   | { [] }
   | id = ID
     { [id] }
-  | id = ID; COMMA; ps = params
+  | id = ID; COMMA; ps = fn_args
     { id :: ps }
 
 args:
