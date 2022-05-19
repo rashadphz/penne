@@ -51,6 +51,10 @@ and statement =
       true_blk: statement;
       else_blk: statement option;
     }
+  | While of {
+    cond: expr;
+    blk: statement;
+  }
   | VarDecl of var_decl
   | FunDecl of fun_def
   and fun_def = {

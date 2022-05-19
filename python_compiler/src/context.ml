@@ -6,6 +6,7 @@ let context = Llvm.global_context ()
 let the_module = Llvm.create_module context "the_compiler"
 let builder = Llvm.builder context
 let named_values: (string, Llvm.llvalue) Hashtbl.t = Hashtbl.create (module String)
+let named_values_ptrs: (string, Llvm.llvalue) Hashtbl.t = Hashtbl.create (module String)
 
 (*types*)
 let double_type = Llvm.double_type context
@@ -47,20 +48,47 @@ let store_ptr ptr str_val =
   Llvm.build_store str_val ptr (get_builder ())
 
 (* Allocate space in the stack, store the var in named_values *)
+(*If var already exists just modify*)
 let make_local_var name init_val =
-  let alloc_name = (name ^ "_alloc") in
-  let var_ptr = Llvm.build_alloca i32_type alloc_name (get_builder ()) in
-  let store = store_ptr var_ptr init_val in
-  let var_value = load_ptr var_ptr ~name in
-  Hashtbl.set named_values ~key:name ~data:var_value;
-  var_value
+  match Hashtbl.find named_values_ptrs name with
+  | Some var_ptr -> store_ptr var_ptr init_val
+  | None -> 
+    let alloc_name = (name ^ "_alloc") in
+    let var_ptr = Llvm.build_alloca i32_type alloc_name (get_builder ()) in
+    let store = store_ptr var_ptr init_val in
+    let var_value = load_ptr var_ptr ~name in
+    Hashtbl.set named_values ~key:name ~data:var_value;
+    Hashtbl.set named_values_ptrs ~key:name ~data:var_ptr;
+    var_value
+
+let rec alloc_fn_args args =
+  match args with
+  | [] -> ()
+  | hd :: tl -> 
+    let arg_val = Hashtbl.find_exn named_values hd in
+    (make_local_var hd arg_val : Llvm.llvalue) |> ignore;
+    alloc_fn_args tl;
+    ()
+
+
+(* If the value of a global cannot be determined at compile time *)
+(* Need to determine the value then store it in memory later *)
+let make_runtime_global name init_val =
+  (* init_val IR has already been printed, just need to store it *)
+  let global_var = Llvm.define_global name llvm_zero the_module in
+  store_ptr global_var init_val
+
 
 (* Non-existent -> make global, Exists -> store new value *)
 let make_global_var name init_val =
   match Llvm.lookup_global name the_module with
-  | None -> Llvm.define_global name init_val the_module
-  | Some v_ptr -> store_ptr  v_ptr init_val
+  | None -> 
+    (* Assigning to constant is easy, otherwise extra steps *)
+    (match Llvm.is_constant init_val with
+    | true -> Llvm.define_global name init_val the_module
+    | false -> make_runtime_global name init_val)
 
+  | Some v_ptr -> store_ptr  v_ptr init_val
 
 let add_var name init_val =
   match !is_main with
@@ -74,9 +102,9 @@ let find_global_var name =
 
 (* Search the local scope first then global *)
 let find_var name = 
-  match Hashtbl.find named_values name with
+  match Hashtbl.find named_values_ptrs name with
   | None -> find_global_var name 
-  | Some v -> v
+  | Some v_ptr -> load_ptr v_ptr ~name:name
 
 (* Functions *)
 let arg_types args = 
@@ -99,7 +127,7 @@ let call fn args =
 let set_fn_args fn args = 
   Array.iteri ~f:(fun i arg ->
     let name = List.nth_exn args i in
-    Llvm.set_value_name name arg;
+    Llvm.set_value_name (name ^ "_arg") arg;
     Hashtbl.add_exn named_values ~key:name ~data:arg;
   ) (Llvm.params fn);
     fn 

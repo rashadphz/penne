@@ -25,6 +25,7 @@
 
 %token TRUE FALSE
 %token WHILE FOR
+%token IN RANGE
 
 %token COMMA
 %token SEMICOLON
@@ -34,6 +35,7 @@
 
 %token IF ELSE ELIF
 %token PRINT
+
 
 %start <Ast.prog> prog
 %%
@@ -71,6 +73,8 @@ statement:
     { Block b }
   | RETURN; ret_val = expr; SEMICOLON;
     { RetVal ret_val }
+  | WHILE; cond = expr; COLON; blk = statement;
+    {While {cond; blk} }
 
 statements:
   | { [] }

@@ -23,6 +23,8 @@ let next_line lexbuf =
     "if", IF;
     "else", ELSE;
     "elif" , ELIF;
+    "range" , RANGE;
+    "in", IN;
     ]
 
   let consume_identifier id = 

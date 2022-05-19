@@ -26,26 +26,25 @@ let rec gen_expr = function
       call callee args
   
 
-
-
 let gen_proto proto = 
-    let fun_name = proto.fun_name in
-    let args = proto.args in
+  let fun_name = proto.fun_name in
+  let args = proto.args in
 
-    let a_types = arg_types args in
-    let fn_type = Llvm.function_type i32_type a_types in
-    let fn =  
-      match find_fn fun_name with
-      | None -> declare_fn fun_name fn_type
-      | Some (fn) -> raise_s [%message "Function already exists" (fun_name) ]
-    in set_fn_args fn args
+  let a_types = arg_types args in
+  let fn_type = Llvm.function_type i32_type a_types in
+  let fn =  
+    match find_fn fun_name with
+    | None -> declare_fn fun_name fn_type
+    | Some (fn) -> raise_s [%message "Function already exists" (fun_name) ]
+  in set_fn_args fn args
 
 
 let rec gen_fn proto body =  
   let the_fn = gen_proto proto in
     (make_bb the_fn : _) |> ignore;
-  let ret_val = gen_block body in
-    (finish_fn ret_val: Llvm.llvalue) |> ignore;
+  alloc_fn_args proto.args;
+  let ret_val = gen_block body in (*If return value, return it else 0*)
+  (finish_fn ret_val : Llvm.llvalue) |> ignore;
   (* Clear any function args/locals *)
   Hashtbl.clear named_values; 
   the_fn
@@ -60,7 +59,7 @@ and gen_block block =
 and gen_statement = function
   | Exp (e) -> gen_expr e
   | Block (ss) -> gen_block ss
-  | RetVal (ret) -> gen_expr ret |> finish_fn
+  | RetVal (v) -> gen_expr v 
   | VarDecl ({name; init_val}) -> 
     let llvm_val = gen_expr init_val in
     add_var name llvm_val
@@ -68,15 +67,18 @@ and gen_statement = function
     gen_fn proto body
   | If ({cond; true_blk; else_blk}) ->
     gen_if cond true_blk else_blk
+  | While ({cond; blk}) ->
+    gen_while cond blk
 
 and gen_top_level_exp stat =
-  is_main := true; (*Top level expressions belong in main*)
   let res = match stat with
-  | Exp (e) -> 
+  (* Toplevel Exp *)
+  | Exp _ | If _ | While _ | VarDecl _ -> 
+    is_main := true; 
     gen_statement stat 
-  | VarDecl (e) -> 
-    gen_statement stat 
-  | _ -> (*Otherwise this is not a top level expression*)
+  (* Functionlevel Exp *)
+
+  | Block _ | RetVal _ | FunDecl _ ->
     is_main := false;
     gen_statement stat 
   in
@@ -106,17 +108,50 @@ and gen_if condition true_blk else_blk =
   let merge_bb = make_bb parent_fn ~name:"ifcont" in
   
   (* Return to the start block to add the conditional branch. *)
-  Llvm.position_at_end start_bb builder;
+  Llvm.position_at_end start_bb (get_builder ());
   (Llvm.build_cond_br cond_val then_bb else_bb (get_builder ()) : _) |> ignore;
 
   Llvm.position_at_end new_then_bb builder ;
-  (Llvm.build_br merge_bb builder : _ ) |> ignore ;
+  (Llvm.build_br merge_bb (get_builder ()) : _ ) |> ignore ;
 
   Llvm.position_at_end new_else_bb builder ;
-  (Llvm.build_br merge_bb builder : _ ) |> ignore ;
+  (Llvm.build_br merge_bb (get_builder ()) : _ ) |> ignore ;
 
   (* Finally, set the builder to the end of the merge block. *)
-  Llvm.position_at_end merge_bb builder ;
+  Llvm.position_at_end merge_bb (get_builder ()) ;
+  llvm_zero
+
+and gen_while condition blk =
+  let start_bb = Llvm.insertion_block (get_builder ()) in
+  let parent_fn = Llvm.block_parent start_bb in
+
+  (* Condition Block *)
+  let cond_bb = make_bb parent_fn ~name:"cond" in
+  let new_cond_bb = Llvm.insertion_block (get_builder ()) in
+  let cond = gen_expr condition in
+  let cond_val = to_llbool cond in 
+
+  (* Body of the Loop *)
+  let loop_bb = make_bb parent_fn ~name:"loop" in
+  let loop_blk = gen_statement blk in
+  let new_loop_bb = Llvm.insertion_block (get_builder ()) in
+  (* Branch back to conditional *)
+  let cond_branch = Llvm.build_br new_cond_bb (get_builder ()) in
+
+  (* Exit Loop *)
+  let exit_bb = make_bb parent_fn ~name:"cont" in
+
+  (* Return to the start block to add the conditional branch. *)
+  Llvm.position_at_end new_cond_bb (get_builder ());
+  (Llvm.build_cond_br cond_val loop_bb exit_bb (get_builder ()) : _) |> ignore;
+
+  (* Make Entry Block Branch to Condition *)
+  Llvm.position_at_end start_bb (get_builder ());
+  (Llvm.build_br cond_bb (get_builder ()) : _) |> ignore;
+
+  (* Finally, set the builder to the end of the continue block. *)
+  Llvm.position_at_end exit_bb (get_builder ()) ;
+
   llvm_zero
 
 
