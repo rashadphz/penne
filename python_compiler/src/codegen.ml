@@ -24,6 +24,9 @@ let rec gen_expr = function
         | Some callee -> callee
       in
       call callee args
+  
+
+
 
 let gen_proto proto = 
     let fun_name = proto.fun_name in
@@ -37,11 +40,12 @@ let gen_proto proto =
       | Some (fn) -> raise_s [%message "Function already exists" (fun_name) ]
     in set_fn_args fn args
 
+
 let rec gen_fn proto body =  
   let the_fn = gen_proto proto in
-    make_bb the_fn;
+    (make_bb the_fn : _) |> ignore;
   let ret_val = gen_block body in
-    finish_fn ret_val;
+    (finish_fn ret_val: Llvm.llvalue) |> ignore;
   (* Clear any function args/locals *)
   Hashtbl.clear named_values; 
   the_fn
@@ -56,13 +60,14 @@ and gen_block block =
 and gen_statement = function
   | Exp (e) -> gen_expr e
   | Block (ss) -> gen_block ss
-  | RetVal (ret) -> ret |> gen_expr 
+  | RetVal (ret) -> gen_expr ret |> finish_fn
   | VarDecl ({name; init_val}) -> 
     let llvm_val = gen_expr init_val in
     add_var name llvm_val
   | FunDecl ({proto; body}) ->
-    gen_fn proto body;
-  | _ -> debug_val
+    gen_fn proto body
+  | If ({cond; true_blk; else_blk}) ->
+    gen_if cond true_blk else_blk
 
 and gen_top_level_exp stat =
   is_main := true; (*Top level expressions belong in main*)
@@ -71,11 +76,49 @@ and gen_top_level_exp stat =
     gen_statement stat 
   | VarDecl (e) -> 
     gen_statement stat 
-  | _ -> 
+  | _ -> (*Otherwise this is not a top level expression*)
     is_main := false;
     gen_statement stat 
   in
   res
+
+and gen_if condition true_blk else_blk = 
+  let cond = gen_expr condition in
+  let cond_val = to_llbool cond in 
+
+  let start_bb = Llvm.insertion_block (get_builder ()) in
+  let parent_fn = Llvm.block_parent start_bb in
+
+  (* If *)
+  let then_bb = make_bb parent_fn ~name:"then" in
+  let then_val = gen_statement true_blk in
+  let new_then_bb = Llvm.insertion_block (get_builder ()) in
+
+  (* Else *)
+  let else_bb = make_bb parent_fn ~name:"else" in
+  let else_val = 
+    match else_blk with
+    | None -> llvm_zero
+    | Some v -> gen_statement v in
+  let new_else_bb = Llvm.insertion_block (get_builder ()) in
+
+  (* Merge *)
+  let merge_bb = make_bb parent_fn ~name:"ifcont" in
+  
+  (* Return to the start block to add the conditional branch. *)
+  Llvm.position_at_end start_bb builder;
+  (Llvm.build_cond_br cond_val then_bb else_bb (get_builder ()) : _) |> ignore;
+
+  Llvm.position_at_end new_then_bb builder ;
+  (Llvm.build_br merge_bb builder : _ ) |> ignore ;
+
+  Llvm.position_at_end new_else_bb builder ;
+  (Llvm.build_br merge_bb builder : _ ) |> ignore ;
+
+  (* Finally, set the builder to the end of the merge block. *)
+  Llvm.position_at_end merge_bb builder ;
+  llvm_zero
+
 
 let rec gen_prog prog =
   match prog with 

@@ -70,7 +70,7 @@ let add_var name init_val =
 let find_global_var name =
   match Llvm.lookup_global name the_module with
   | None -> raise_s [%message "Variable does not exist"]
-  | Some v_ptr -> load_ptr v_ptr 
+  | Some v_ptr -> load_ptr v_ptr ~name  
 
 (* Search the local scope first then global *)
 let find_var name = 
@@ -105,10 +105,20 @@ let set_fn_args fn args =
     fn 
 
 let finish_fn ret_val =
-  ignore(Llvm.build_ret ret_val builder : Llvm.llvalue) 
+  Llvm.build_ret ret_val builder 
 
 let finish_main () =
   ignore(Llvm.build_ret llvm_zero main_builder : Llvm.llvalue) 
+
+(* Misc Helpers *)
+
+(* Converts any llvm value to boolean *)
+let to_llbool cond =
+  Llvm.build_icmp Llvm.Icmp.Ne cond llvm_zero "asbool" (get_builder ())
+
+(* Converts any llvm bool to int *)
+let llint_of_bool llbool =
+  Llvm.build_zext_or_bitcast llbool i32_type "bool_to_int" (get_builder ())
 
 (* Builtin Functions *)
 let is_builtin f_name =
@@ -129,10 +139,9 @@ let built_in_call f_name args =
   | _ -> debug_val
 
 (* Building Blocks *)
-let make_bb the_fn =
-  let bb = Llvm.append_block context "entry" the_fn in
-  Llvm.position_at_end bb (get_builder ());
-  ()
+let make_bb ?(name="entry") the_fn =
+  let bb = Llvm.append_block context name the_fn in
+  Llvm.position_at_end bb (get_builder ()); bb
 
 let gen_binop op lhs rhs =
   match op with
@@ -143,10 +152,11 @@ let gen_binop op lhs rhs =
   | Sub -> Llvm.build_sub lhs rhs "subtmp" (get_builder ())
   | LShift -> Llvm.build_shl lhs rhs "shltmp" (get_builder ())
   | RShift -> Llvm.build_ashr lhs rhs "ashrtmp" (get_builder ())
-  | Lt -> Llvm.build_icmp Llvm.Icmp.Slt lhs rhs "cmptmp" (get_builder ())
-  | Leq -> Llvm.build_icmp Llvm.Icmp.Sle lhs rhs "cmptmp" (get_builder ())
-  | Gt -> Llvm.build_icmp Llvm.Icmp.Sgt lhs rhs "cmptmp" (get_builder ())
-  | Geq -> Llvm.build_icmp Llvm.Icmp.Sge lhs rhs "cmptmp" (get_builder ())
-  | CmpEq -> Llvm.build_icmp Llvm.Icmp.Eq lhs rhs "cmptmp" (get_builder ())
-  | CmpNeq -> Llvm.build_icmp Llvm.Icmp.Ne lhs rhs "cmptmp" (get_builder ())
+
+  | Lt -> Llvm.build_icmp Llvm.Icmp.Ult lhs rhs "cmptmp" (get_builder ()) |> llint_of_bool
+  | Leq -> Llvm.build_icmp Llvm.Icmp.Ule lhs rhs "cmptmp" (get_builder ()) |> llint_of_bool
+  | Gt -> Llvm.build_icmp Llvm.Icmp.Ugt lhs rhs "cmptmp" (get_builder ()) |> llint_of_bool
+  | Geq -> Llvm.build_icmp Llvm.Icmp.Uge lhs rhs "cmptmp" (get_builder ()) |> llint_of_bool
+  | CmpEq -> Llvm.build_icmp Llvm.Icmp.Eq lhs rhs "cmptmp" (get_builder ()) |> llint_of_bool
+  | CmpNeq -> Llvm.build_icmp Llvm.Icmp.Ne lhs rhs "cmptmp" (get_builder ()) |> llint_of_bool
 
