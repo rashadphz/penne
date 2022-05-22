@@ -27,6 +27,8 @@ type expr =
   | String of string
   | BinOp of bop * expr * expr
   | FunCall of string * expr list (*fun_name by fun_args*)
+  | List of expr list
+  | ListAccess of string * expr
 [@@deriving sexp]
 
 type var_decl = {

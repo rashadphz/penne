@@ -1,6 +1,12 @@
 open Core
 open Ast
 
+(*Range from i to j*)
+let (--) i j = 
+  let rec aux n acc =
+    if n <= i then acc else aux (n-1) (n :: acc)
+  in aux j [] ;;
+
 (* LLVM Initialization *)
 let context = Llvm.global_context ()
 let the_module = Llvm.create_module context "the_compiler"
@@ -12,9 +18,18 @@ let named_values_ptrs: (string, Llvm.llvalue) Hashtbl.t = Hashtbl.create (module
 let double_type = Llvm.double_type context
 let i32_type = Llvm.i32_type context
 let ch_type = Llvm.i8_type context
+let i32vector_type = Llvm.vector_type i32_type 
+
+let list_head_idx = 0
+let list_len_idx = 1
+let list_cap_idx = 2
 
 (*ptr types*)
+let i32_ptr = Llvm.pointer_type i32_type
 let ch_ptr = Llvm.pointer_type ch_type
+
+(* array types *)
+let i32_array = Llvm.array_type i32_type
 
 let debug_val = Llvm.const_int i32_type 999
 let llvm_zero = Llvm.const_int i32_type 0
@@ -121,6 +136,9 @@ let declare_fn fn_name fn_type =
 let gen_args args ~f:codegen =
   Array.map (Array.of_list args) ~f:codegen
 
+let gen_elems elems ~f:codegen =
+  Array.map (Array.of_list elems) ~f:codegen
+
 let call fn args = 
   Llvm.build_call fn args "calltmp" (get_builder ())
 
@@ -170,6 +188,36 @@ let built_in_call f_name args =
 let make_bb ?(name="entry") the_fn =
   let bb = Llvm.append_block context name the_fn in
   Llvm.position_at_end bb (get_builder ()); bb
+
+(* Lists *)
+let gen_list elems =
+  (* length *)
+  let length = List.length elems in
+  let len = Llvm.const_int i32_type length in 
+
+  (* capacity *)
+  let capacity = length in
+  let cap = Llvm.const_int i32_type length in 
+
+  let vector_type = i32vector_type capacity in
+  let empty_vector = Llvm.undef vector_type in
+
+  let rec build_vector elems idx vector =
+    let ll_index = llvm_i32 idx in
+    let elem = List.nth_exn elems idx in
+    let updated_vector = Llvm.build_insertelement vector elem ll_index "vector" (get_builder ()) in
+
+    if idx = length - 1 then
+      updated_vector
+    else
+      build_vector elems (idx + 1) updated_vector
+  in
+
+  build_vector elems 0 empty_vector
+
+let gen_access list idx =
+  Llvm.build_extractelement list idx "extract" (get_builder ())
+
 
 let gen_binop op lhs rhs =
   match op with

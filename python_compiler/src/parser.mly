@@ -10,6 +10,8 @@
 %token RPAREN
 %token LBRACE
 %token RBRACE
+%token LBRACKET
+%token RBRACKET
 
 %token TIMES DIV MOD
 %token PLUS MINUS
@@ -46,7 +48,6 @@ prog:
     { let Prog ss = p in Prog ( s :: ss ) } (* Top-lvl-exp followed by rest of program*)
   | EOF { Prog [] }
 
-
 expr:
   | i = INT { Int i }
   | f = FLOAT { Float f }
@@ -55,6 +56,10 @@ expr:
   | LPAREN; e = expr; RPAREN { e }
   | id = ID; LPAREN; args = args; RPAREN; 
     { FunCall (id, args) }
+  | LBRACKET; elems = args; RBRACKET;
+    { List (elems) }
+  | list = ID; LBRACKET; idx = expr; RBRACKET;
+    { ListAccess (list, idx)}
   
 var_decl:
   id = ID; EQ; e = expr

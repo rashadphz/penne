@@ -59,6 +59,8 @@ rule read =
   | ")" { RPAREN }
   | "{" { LBRACE }
   | "}" { RBRACE }
+  | "[" { LBRACKET }
+  | "]" { RBRACKET }
   | "<" { LT }
   | "<=" { LEQ }
   | ">" { GT }

@@ -9,6 +9,13 @@ let rec gen_expr = function
   | Int (v) ->  llvm_i32 v
   | Float (v) -> llvm_float v
   | String (s) -> Llvm.const_int i32_type 999
+  | List (l_elems) -> 
+    let elems = gen_elems l_elems ~f:(gen_expr) in
+    gen_list (Array.to_list elems)
+  | ListAccess (name, exp) ->
+    let list = find_var name in
+    let idx = gen_expr exp in
+    gen_access list idx
   | BinOp (op, lhs, rhs) -> 
     let lhs_val = gen_expr lhs in
     let rhs_val = gen_expr rhs in
