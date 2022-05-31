@@ -33,20 +33,23 @@ let next_line lexbuf =
     | None -> ID id
 }
 
-
 let digit = ['0'-'9']
 let int = digit+
 let float = digit+ '.' digit+
 
 let id = ['a'-'z' 'A'-'Z' '_']+ ['a'-'z' 'A'-'Z' '_' '0' -'9']*
 
-let white_space = [' ' '\t']+
-let new_line = '\n' | '\r'
+let white_space = [' ']+
+let new_line = ['\n' '\r']+
 
-rule read = 
-  parse 
-  | white_space {read lexbuf}
-  | new_line {next_line lexbuf; read lexbuf}
+rule read = parse 
+  (* | white_space {read lexbuf} *)
+  (* | new_line {next_line lexbuf; read lexbuf} *)
+  | '\r' { read lexbuf }
+  | '\n'+ { NEWLINE }
+  | '\t' { TAB }
+  | '#' { comment lexbuf }
+  | ' ' { SPACE }
   | "*" { TIMES }
   | "/" { DIV }
   | "%" { MOD }
@@ -74,3 +77,8 @@ rule read =
   | int { INT (int_of_string (Lexing.lexeme lexbuf)) }
   | float { FLOAT (float_of_string (Lexing.lexeme lexbuf))}
   | eof {EOF}
+  | _ as char { Core.raise_s[%message "Invalid Character: " (Char.escaped char) ]}
+
+and comment = parse (* continue until newline *)
+  | '\n' { NEWLINE }
+  | _ { comment lexbuf }

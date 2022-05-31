@@ -38,10 +38,62 @@
 %token IF ELSE ELIF
 %token PRINT
 
+%token TAB SPACE NEWLINE
+%token INDENT DEDENT
 
+(* Get the tokens and reformat with proper indentation *)
+%start <token list> tokenize
+
+(* Use the formatted tokens to build AST *)
 %start <Ast.prog> prog
 %%
 
+
+token:
+  | INT { INT ($1) }
+  | FLOAT { FLOAT ($1) }
+  | ID { ID ($1) }
+  | TIMES { TIMES }
+  | DIV { DIV }
+  | MOD { MOD }
+  | PLUS { PLUS }
+  | MINUS { MINUS }
+  | LSHIFT { LSHIFT }
+  | RSHIFT { RSHIFT }
+  | COMMA { COMMA }
+  | LPAREN { LPAREN }
+  | RPAREN { RPAREN }
+  | LBRACE { LBRACE }
+  | RBRACE { RBRACE }
+  | LBRACKET { LBRACKET}
+  | RBRACKET { RBRACKET }
+  | LT { LT }
+  | LEQ { LEQ }
+  | GT { GT }
+  | GEQ { GEQ }
+  | CMP_EQ { CMP_EQ }
+  | CMP_NEQ { CMP_NEQ }
+  | EQ { EQ }
+  | SEMICOLON { SEMICOLON }
+  | COLON { COLON }
+  | NEWLINE { NEWLINE }
+  | SPACE { SPACE }
+  | TAB { TAB }
+  | IF { IF }
+  | ELSE { ELSE }
+  | WHILE { WHILE }
+  | DEF { DEF }
+  | RETURN { RETURN }
+  | COMMA { COMMA }
+
+tokenize:
+  | tl = toklist
+    { tl }
+
+toklist:
+  | t = token; ts = toklist
+    { t :: ts }
+  | EOF { [] }
 
 prog:
   | s = statement; p = prog;
@@ -66,9 +118,9 @@ var_decl:
     { { name = id; init_val = e } }
 
 statement:
-  | e = expr; SEMICOLON
+  | e = expr; NEWLINE;
     { Exp (e) }
-  | vd = var_decl; SEMICOLON
+  | vd = var_decl; NEWLINE;
     { VarDecl (vd) }
   | fd = fun_def;
     { FunDecl (fd) }
@@ -76,7 +128,7 @@ statement:
     { If {cond; true_blk; else_blk} }
   | b = block
     { Block b }
-  | RETURN; ret_val = expr; SEMICOLON;
+  | RETURN; ret_val = expr; NEWLINE;
     { RetVal ret_val }
   | WHILE; cond = expr; COLON; blk = statement;
     {While {cond; blk} }
@@ -87,7 +139,7 @@ statements:
     { s :: ss }
 
 block:
-  | LBRACE; stmnts = statements; RBRACE
+  | NEWLINE; INDENT ; stmnts = statements; DEDENT
     { stmnts }
 
 fun_proto:

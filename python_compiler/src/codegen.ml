@@ -47,13 +47,15 @@ let gen_proto proto =
 
 
 let rec gen_fn proto body =  
+  (* Clear any function args/locals *)
+  Hashtbl.clear named_values; 
+  Hashtbl.clear named_values_ptrs; 
+
   let the_fn = gen_proto proto in
     (make_bb the_fn : _) |> ignore;
   alloc_fn_args proto.args;
   let ret_val = gen_block body in (*If return value, return it else 0*)
   (finish_fn ret_val : Llvm.llvalue) |> ignore;
-  (* Clear any function args/locals *)
-  Hashtbl.clear named_values; 
   the_fn
 
 (*generate a statement then the rest of the block*)
@@ -113,20 +115,23 @@ and gen_if condition true_blk else_blk =
 
   (* Merge *)
   let merge_bb = make_bb parent_fn ~name:"ifcont" in
+  let incoming = [(then_val, new_then_bb); (else_val, new_else_bb)] in
+  let phi = Llvm.build_phi incoming "iftmp" builder in
+
   
   (* Return to the start block to add the conditional branch. *)
   Llvm.position_at_end start_bb (get_builder ());
   (Llvm.build_cond_br cond_val then_bb else_bb (get_builder ()) : _) |> ignore;
 
-  Llvm.position_at_end new_then_bb builder ;
+  Llvm.position_at_end new_then_bb (get_builder ()) ;
   (Llvm.build_br merge_bb (get_builder ()) : _ ) |> ignore ;
 
-  Llvm.position_at_end new_else_bb builder ;
+  Llvm.position_at_end new_else_bb (get_builder ()) ;
   (Llvm.build_br merge_bb (get_builder ()) : _ ) |> ignore ;
 
   (* Finally, set the builder to the end of the merge block. *)
   Llvm.position_at_end merge_bb (get_builder ()) ;
-  llvm_zero
+  phi
 
 and gen_while condition blk =
   let start_bb = Llvm.insertion_block (get_builder ()) in

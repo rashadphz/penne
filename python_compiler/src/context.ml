@@ -1,6 +1,10 @@
 open Core
 open Ast
 
+(*Optimizations*)
+module PassManager = Llvm.PassManager
+open Llvm_scalar_opts
+
 (*Range from i to j*)
 let (--) i j = 
   let rec aux n acc =
@@ -11,6 +15,26 @@ let (--) i j =
 let context = Llvm.global_context ()
 let the_module = Llvm.create_module context "the_compiler"
 let builder = Llvm.builder context
+
+(* Optimizations *)
+(* Set up the optimizer pipeline.  Start with registering info about how the
+ * target lays out data structures. *)
+let pass_manager = PassManager.create () 
+
+(* Do simple "peephole" optimizations and bit-twiddling optzn. *)
+let () = add_instruction_combination pass_manager
+(* reassociate expressions. *)
+let () = add_reassociation pass_manager
+(* Eliminate Common SubExpressions. *)
+let () = add_gvn pass_manager
+(* Simplify the control flow graph (deleting unreachable blocks, etc). *)
+let () =  add_cfg_simplification pass_manager
+
+let () =  add_memory_to_register_promotion pass_manager
+
+let optimize_module () = PassManager.run_module the_module pass_manager
+
+
 let named_values: (string, Llvm.llvalue) Hashtbl.t = Hashtbl.create (module String)
 let named_values_ptrs: (string, Llvm.llvalue) Hashtbl.t = Hashtbl.create (module String)
 
