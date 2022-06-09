@@ -1,0 +1,21 @@
+(executable
+ (public_name python_compiler)
+ (name main)
+ (libraries core 
+   cmdliner
+   ctypes.foreign
+   llvm
+   llvm.analysis
+   llvm.executionengine
+   llvm.target
+   llvm.scalar_opts)
+ (preprocess (pps ppx_jane)))
+
+(menhir
+ (modules parser))
+(ocamllex lexer)
+
+
+(env
+  (dev
+    (flags (:standard -w -27 -w -26 -w -32))))
