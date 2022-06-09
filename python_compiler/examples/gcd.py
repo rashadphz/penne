@@ -6,4 +6,4 @@ def gcd(a, b):
           b = b - a
   return a
 
-print(gcd(1009999995, 5))
+print(gcd(2147483648, 2))
