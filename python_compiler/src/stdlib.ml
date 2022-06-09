@@ -13,3 +13,11 @@ let gen_print_int () =
   let int_val = Llvm.param print_int_fn 0 in
   call printf_fn [|format_str; int_val|] |> finish_fn
 
+(* Not Implemented *)
+let gen_len () =
+  let len_t = Llvm.var_arg_function_type  i32_type [|i32_type|] in 
+  let len_fn = declare_fn "len" len_t in
+    (make_bb len_fn: _ ) |> ignore;
+  debug_val |> finish_fn
+
+

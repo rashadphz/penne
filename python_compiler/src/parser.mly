@@ -41,6 +41,10 @@
 %token TAB SPACE NEWLINE
 %token INDENT DEDENT
 
+(*Operator Precedence*)
+%left PLUS MINUS
+%left TIMES DIV MOD
+
 (* Get the tokens and reformat with proper indentation *)
 %start <token list> tokenize
 
@@ -85,6 +89,8 @@ token:
   | DEF { DEF }
   | RETURN { RETURN }
   | COMMA { COMMA }
+  | FOR { FOR }
+  | IN { IN }
 
 tokenize:
   | tl = toklist
@@ -132,6 +138,8 @@ statement:
     { RetVal ret_val }
   | WHILE; cond = expr; COLON; blk = statement;
     {While {cond; blk} }
+  | FOR; var_name = ID; IN; sequence = expr; COLON; blk = statement;;
+    { For {var_name; sequence; blk } } 
 
 statements:
   | { [] }

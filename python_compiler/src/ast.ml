@@ -57,6 +57,11 @@ and statement =
     cond: expr;
     blk: statement;
   }
+  | For of {
+    var_name: string;
+    sequence: expr;
+    blk: statement;
+  }
   | VarDecl of var_decl
   | FunDecl of fun_def
   and fun_def = {

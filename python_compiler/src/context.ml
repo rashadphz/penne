@@ -247,7 +247,7 @@ let gen_binop op lhs rhs =
   match op with
   | Mul -> Llvm.build_mul lhs rhs "multmp" (get_builder ())
   | Div -> Llvm.build_sdiv lhs rhs "divtmp" (get_builder ())
-  | Mod -> Llvm.build_mul lhs rhs "multmp" (get_builder ())
+  | Mod -> Llvm.build_urem lhs rhs "modtmp" (get_builder ())
   | Add -> Llvm.build_add lhs rhs "addtmp" (get_builder ())
   | Sub -> Llvm.build_sub lhs rhs "subtmp" (get_builder ())
   | LShift -> Llvm.build_shl lhs rhs "shltmp" (get_builder ())

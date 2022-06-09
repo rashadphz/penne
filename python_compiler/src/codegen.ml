@@ -8,7 +8,7 @@ let rec gen_expr = function
   | Var (name) -> find_var name
   | Int (v) ->  llvm_i32 v
   | Float (v) -> llvm_float v
-  | String (s) -> Llvm.const_int i32_type 999
+  | String (s) -> Llvm.const_int i32_type 999 (*Not implemented*)
   | List (l_elems) -> 
     let elems = gen_elems l_elems ~f:(gen_expr) in
     gen_list (Array.to_list elems)
@@ -78,11 +78,13 @@ and gen_statement = function
     gen_if cond true_blk else_blk
   | While ({cond; blk}) ->
     gen_while cond blk
+  | For ({var_name; sequence; blk}) ->
+    gen_for var_name sequence blk
 
 and gen_top_level_exp stat =
   let res = match stat with
   (* Toplevel Exp *)
-  | Exp _ | If _ | While _ | VarDecl _ -> 
+  | Exp _ | If _ | While _ | VarDecl _ | For _ -> 
     is_main := true; 
     gen_statement stat 
   (* Functionlevel Exp *)
@@ -165,7 +167,8 @@ and gen_while condition blk =
   Llvm.position_at_end exit_bb (get_builder ()) ;
 
   llvm_zero
-
+and gen_for var_name seq blk =
+  debug_val
 
 let rec gen_prog prog =
   match prog with 
@@ -176,5 +179,6 @@ let rec gen_prog prog =
 
 
 let gen_std_lib () =
-  ignore (printf_fn);
-  ignore (gen_print_int (): _)
+  (printf_fn) |> ignore;
+  (gen_print_int (): _) |> ignore;
+  (gen_len () : _) |> ignore;
