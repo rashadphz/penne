@@ -34,8 +34,8 @@ let next_line lexbuf =
 }
 
 let digit = ['0'-'9']
-let int = digit+
-let float = digit+ '.' digit+
+let int = ['-']* digit+
+let float = ['-']* digit+ '.' digit+
 
 let id = ['a'-'z' 'A'-'Z' '_']+ ['a'-'z' 'A'-'Z' '_' '0' -'9']*
 
